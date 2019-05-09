@@ -1,0 +1,21 @@
+---
+- hosts: panos
+  connection: local
+  gather_facts: False
+
+  tasks:
+  - name: Update local admin users
+    panos_set:
+      ip_address: '{{ inventory_hostname }}'
+      api_key: '{{ vault_api_key }}'
+      xpath: '/config/mgt-config/users'
+      element: '<entry name="{{ item.name }}"><phash>{{ item.phash }}</phash><permissions><role-based><superuser>yes</superuser></role-based></permissions></entry>'
+    with_items: '{{ admin_users }}'
+    delegate_to: localhost
+
+  - name: Commit configuration
+    panos_commit:
+      ip_address: '{{ inventory_hostname }}'
+      api_key: '{{ vault_api_key }}'
+    delegate_to: localhost
+...

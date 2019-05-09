@@ -1,0 +1,18 @@
+---
+- hosts: panos
+  connection: local
+  gather_facts: False
+
+  tasks:
+  - name: Show Active Interfaces
+    panos_op:
+      ip_address: '{{ inventory_hostname }}'
+      api_key: '{{ vault_api_key }}'
+      cmd: show interface ethernet1/9
+    delegate_to: localhost
+    register: int_info
+
+  - name: Output Active Interface Info
+    debug:
+      var: int_info.stdout_lines[0]
+...

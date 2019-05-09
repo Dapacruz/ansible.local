@@ -1,0 +1,49 @@
+---
+- hosts: awx
+  gather_facts: False
+
+  tasks:
+  - name: Enumerate PostgreSQL dump files
+    shell: find /opt/awx/pgdocker/pgbackups -type f
+    register: files
+
+  - name: Backup PostgreSQL dump files
+    fetch:
+      src: '{{ item }}'
+      dest: backup/
+    become: True
+    loop: '{{ files.stdout_lines }}'
+
+  - name: Enumerate Docker Compose files
+    shell: find /opt/awx/compose -type f
+    register: files
+
+  - name: Backup Docker Compose files
+    fetch:
+      src: '{{ item }}'
+      dest: backup/
+    become: True
+    loop: '{{ files.stdout_lines }}'
+
+  - name: Enumerate Ansible generated configuration files
+    shell: find /opt/awx/configurations -type f
+    register: files
+
+  - name: Backup Ansible generated configuration files
+    fetch:
+      src: '{{ item }}'
+      dest: backup/
+    become: True
+    loop: '{{ files.stdout_lines }}'
+
+  - name: Enumerate Traefik configuration and certificate files
+    shell: find /opt/awx/traefik -type f
+    register: files
+
+  - name: Backup Traefik configuration and certificate files
+    fetch:
+      src: '{{ item }}'
+      dest: backup/
+    become: True
+    loop: '{{ files.stdout_lines }}'
+...

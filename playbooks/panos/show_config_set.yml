@@ -1,0 +1,19 @@
+---
+- hosts: panos
+  connection: local
+  gather_facts: False
+
+  tasks:
+  - name: Show Config Set
+    panos_op:
+      ip_address: '{{ inventory_hostname }}'
+      api_key: '{{ vault_api_key }}'
+      # cmd: set cli config-output-format set
+      cmd: show config running
+    delegate_to: localhost
+    register: config_set
+
+  - name: Output Config Set
+    debug:
+      var: config_set.stdout_lines[0]
+...
