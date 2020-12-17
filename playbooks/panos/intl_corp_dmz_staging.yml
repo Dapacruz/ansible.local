@@ -1,0 +1,11 @@
+---
+- hosts: intl_corp_dmz_staging
+  gather_facts: False
+
+  tasks:
+  - name: Generate Intial Configuration Files
+    template:
+      src: templates/intl_corp_dmz_staging.j2
+      dest: templates/output/intl_corp_dmz_staging/intl_corp_dmz_staging-{{ inventory_hostname }}.txt
+    delegate_to: localhost
+...

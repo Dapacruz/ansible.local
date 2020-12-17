@@ -1,0 +1,65 @@
+---
+- hosts: panos
+  connection: local
+  gather_facts: False
+
+  collections:
+    - paloaltonetworks.panos
+
+  tasks:
+    - name: Get PAN-OS Facts
+      panos_facts:
+        provider: "{{ provider }}"
+        gather_subset: ["system", "ha"]
+
+    - name: Enable HA Preemptive
+      block:
+        - name: Set HA Preemptive State To False
+          set_fact:
+            preemptive_enabled: False
+
+        - name: Get HA Preemptive State
+          panos_type_cmd:
+            provider: "{{ provider }}"
+            cmd: show
+            xpath: /config/devices/entry[@name='localhost.localdomain']/deviceconfig/high-availability/group//election-option/preemptive
+          register: results
+          failed_when: False
+
+        - name: Parse HA Preemptive State
+          block:
+            - name: Parse HA Preemptive State
+              xml:
+                xmlstring: "{{ results.stdout_xml }}"
+                xpath: /preemptive
+                content: text
+              register: preemptive_state
+            - name: Save HA Preemptive State
+              set_fact:
+                preemptive_enabled: "{{ preemptive_state.matches[0].preemptive }}"
+          when: results.stdout_xml is defined
+
+        - name: Enable HA Preemptive
+          panos_type_cmd:
+            provider: "{{ provider }}"
+            cmd: set
+            xpath: /config/devices/entry[@name='localhost.localdomain']/deviceconfig/high-availability/group/entry/election-option
+            element: <preemptive>yes</preemptive>
+          when: ansible_net_version is match('8.0') and not preemptive_enabled
+          register: preemptive_state
+
+        - name: Enable HA Preemptive
+          panos_type_cmd:
+            provider: "{{ provider }}"
+            cmd: set
+            xpath: /config/devices/entry[@name='localhost.localdomain']/deviceconfig/high-availability/group/election-option
+            element: <preemptive>yes</preemptive>
+          when: ansible_net_version is match('8.1') and not preemptive_enabled
+          register: preemptive_state
+
+        - name: Commit Configuration
+          panos_commit:
+            provider: "{{ provider }}"
+            admins: ["migration"]
+          when: preemptive_state.changed
+      when: ansible_net_ha_enabled

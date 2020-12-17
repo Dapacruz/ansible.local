@@ -3,17 +3,20 @@
   connection: local
   gather_facts: False
 
-  tasks:
-  - name: Show Config Set
-    panos_op:
-      ip_address: '{{ inventory_hostname }}'
-      api_key: '{{ vault_api_key }}'
-      # cmd: set cli config-output-format set
-      cmd: show config running
-    delegate_to: localhost
-    register: config_set
+  collections:
+    - paloaltonetworks.panos
 
-  - name: Output Config Set
-    debug:
-      var: config_set.stdout_lines[0]
-...
+  tasks:
+    - name: Show Config Set
+      panos_op:
+        provider: "{{ provider }}"
+        cmd: "{{ item }}"
+      register: config_set
+      with_items:
+        - set cli config-output-format set
+        - configure
+        - show
+
+    - name: Output Config Set
+      debug:
+        var: config_set.results[2].stdout_lines[0]

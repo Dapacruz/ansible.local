@@ -1,0 +1,170 @@
+#jinja2: lstrip_blocks: True, trim_blocks: True
+########################
+### Configure Switch ###
+########################
+
+{% if switch is defined %}
+# Back up switch configuration
+show running-config
+
+configure terminal
+
+# Create switch VLAN and validate
+vlan {{ switch.vlan }}
+ name {{ switch.vlan_name }}
+ exit
+do show vlan id {{ switch.vlan }}
+
+{% if switch.update_interfaces %}
+# Add new VLAN to switch ports and validate
+{% for interface in switch.interfaces %}
+interface {{ interface }}
+ switchport trunk allowed vlan add {{ switch.vlan }}
+!
+do show running-config interface {{ interface }}
+do show interface {{ interface }} trunk
+!
+!
+{% endfor %}
+
+{% endif %}
+# Save switch configuration
+end
+copy running-config startup-config
+{% endif %}
+
+
+##########################
+### Configure Firewall ###
+##########################
+
+# Save firewall configuration snapshot
+set cli config-output-format set
+configure
+save config to pre-dmz-config-2020-05.xml
+
+{% if aggregate_ethernet is defined %}
+# Create firewall subinterface
+set network interface aggregate-ethernet {{ aggregate_ethernet.interface }} layer3 units {{ aggregate_ethernet.interface }}.{{ aggregate_ethernet.tag }} tag {{ aggregate_ethernet.tag }}
+set network interface aggregate-ethernet {{ aggregate_ethernet.interface }} layer3 units {{ aggregate_ethernet.interface }}.{{ aggregate_ethernet.tag }} ipv6 neighbor-discovery router-advertisement enable no
+set network interface aggregate-ethernet {{ aggregate_ethernet.interface }} layer3 units {{ aggregate_ethernet.interface }}.{{ aggregate_ethernet.tag }} ndp-proxy enabled no
+set network interface aggregate-ethernet {{ aggregate_ethernet.interface }} layer3 units {{ aggregate_ethernet.interface }}.{{ aggregate_ethernet.tag }} adjust-tcp-mss enable no
+set network interface aggregate-ethernet {{ aggregate_ethernet.interface }} layer3 units {{ aggregate_ethernet.interface }}.{{ aggregate_ethernet.tag }} comment "{{ aggregate_ethernet.comment }}"
+set network interface aggregate-ethernet {{ aggregate_ethernet.interface }} layer3 units {{ aggregate_ethernet.interface }}.{{ aggregate_ethernet.tag }} interface-management-profile "{{ aggregate_ethernet.mgmt_profile }}"
+set network interface aggregate-ethernet {{ aggregate_ethernet.interface }} layer3 units {{ aggregate_ethernet.interface }}.{{ aggregate_ethernet.tag }} ip {{ aggregate_ethernet.ip }}
+{% if multi_vsys %}
+set vsys {{ vsys }} import network interface {{ aggregate_ethernet.interface }}.{{ aggregate_ethernet.tag }}
+set vsys {{ vsys }} zone {{ aggregate_ethernet.zone }} network layer3 {{ aggregate_ethernet.interface }}.{{ aggregate_ethernet.tag }}
+{% else %}
+override zone {{ aggregate_ethernet.zone }}
+set zone {{ aggregate_ethernet.zone }} network layer3 {{ aggregate_ethernet.interface }}.{{ aggregate_ethernet.tag }}
+{% endif %}
+set network virtual-router {{ vrouter }} interface {{ aggregate_ethernet.interface }}.{{ aggregate_ethernet.tag }}
+
+{% if ospf %}
+# Advertise DMZ subnet into OSPF
+set network virtual-router {{ vrouter }} protocol ospf area 0.0.0.0 interface {{ aggregate_ethernet.interface }}.{{ aggregate_ethernet.tag }} enable yes
+set network virtual-router {{ vrouter }} protocol ospf area 0.0.0.0 interface {{ aggregate_ethernet.interface }}.{{ aggregate_ethernet.tag }} passive yes
+set network virtual-router {{ vrouter }} protocol ospf area 0.0.0.0 interface {{ aggregate_ethernet.interface }}.{{ aggregate_ethernet.tag }} gr-delay 10
+set network virtual-router {{ vrouter }} protocol ospf area 0.0.0.0 interface {{ aggregate_ethernet.interface }}.{{ aggregate_ethernet.tag }} metric 10
+set network virtual-router {{ vrouter }} protocol ospf area 0.0.0.0 interface {{ aggregate_ethernet.interface }}.{{ aggregate_ethernet.tag }} priority 1
+set network virtual-router {{ vrouter }} protocol ospf area 0.0.0.0 interface {{ aggregate_ethernet.interface }}.{{ aggregate_ethernet.tag }} hello-interval 1
+set network virtual-router {{ vrouter }} protocol ospf area 0.0.0.0 interface {{ aggregate_ethernet.interface }}.{{ aggregate_ethernet.tag }} dead-counts 4
+set network virtual-router {{ vrouter }} protocol ospf area 0.0.0.0 interface {{ aggregate_ethernet.interface }}.{{ aggregate_ethernet.tag }} retransmit-interval 5
+set network virtual-router {{ vrouter }} protocol ospf area 0.0.0.0 interface {{ aggregate_ethernet.interface }}.{{ aggregate_ethernet.tag }} transit-delay 1
+set network virtual-router {{ vrouter }} protocol ospf area 0.0.0.0 interface {{ aggregate_ethernet.interface }}.{{ aggregate_ethernet.tag }} link-type broadcast
+
+{% endif %}
+# Validate and commit
+show | match {{ aggregate_ethernet.interface }}.{{ aggregate_ethernet.tag }}
+
+commit
+
+run show interface {{ aggregate_ethernet.interface }}.{{ aggregate_ethernet.tag }}
+run show arp {{ aggregate_ethernet.interface }}.{{ aggregate_ethernet.tag }}
+run ping count 3 source {{ aggregate_ethernet.ip[:-3] }} host 10.10.10.10
+run traceroute source {{ aggregate_ethernet.ip[:-3] }} host 10.10.10.10
+{% endif %}
+
+{%- if ethernet is defined %}
+# Create firewall subinterface
+set network interface ethernet {{ ethernet.interface }} layer3 units {{ ethernet.interface }}.{{ ethernet.tag }} tag {{ ethernet.tag }}
+set network interface ethernet {{ ethernet.interface }} layer3 units {{ ethernet.interface }}.{{ ethernet.tag }} ipv6 neighbor-discovery router-advertisement enable no
+set network interface ethernet {{ ethernet.interface }} layer3 units {{ ethernet.interface }}.{{ ethernet.tag }} ndp-proxy enabled no
+set network interface ethernet {{ ethernet.interface }} layer3 units {{ ethernet.interface }}.{{ ethernet.tag }} adjust-tcp-mss enable no
+set network interface ethernet {{ ethernet.interface }} layer3 units {{ ethernet.interface }}.{{ ethernet.tag }} comment "{{ ethernet.comment }}"
+set network interface ethernet {{ ethernet.interface }} layer3 units {{ ethernet.interface }}.{{ ethernet.tag }} interface-management-profile "{{ ethernet.mgmt_profile }}"
+set network interface ethernet {{ ethernet.interface }} layer3 units {{ ethernet.interface }}.{{ ethernet.tag }} ip {{ ethernet.ip }}
+{% if multi_vsys %}
+set vsys {{ vsys }} import network interface {{ ethernet.interface }}.{{ ethernet.tag }}
+set vsys {{ vsys }} zone {{ ethernet.zone }} network layer3 {{ ethernet.interface }}.{{ ethernet.tag }}
+{% else %}
+override zone {{ ethernet.zone }}
+set zone {{ ethernet.zone }} network layer3 {{ ethernet.interface }}.{{ ethernet.tag }}
+{% endif %}
+set network virtual-router {{ vrouter }} interface {{ ethernet.interface }}.{{ ethernet.tag }}
+
+{% if ospf %}
+# Advertise DMZ subnet into OSPF
+set network virtual-router {{ vrouter }} protocol ospf area 0.0.0.0 interface {{ ethernet.interface }}.{{ ethernet.tag }} enable yes
+set network virtual-router {{ vrouter }} protocol ospf area 0.0.0.0 interface {{ ethernet.interface }}.{{ ethernet.tag }} passive yes
+set network virtual-router {{ vrouter }} protocol ospf area 0.0.0.0 interface {{ ethernet.interface }}.{{ ethernet.tag }} gr-delay 10
+set network virtual-router {{ vrouter }} protocol ospf area 0.0.0.0 interface {{ ethernet.interface }}.{{ ethernet.tag }} metric 10
+set network virtual-router {{ vrouter }} protocol ospf area 0.0.0.0 interface {{ ethernet.interface }}.{{ ethernet.tag }} priority 1
+set network virtual-router {{ vrouter }} protocol ospf area 0.0.0.0 interface {{ ethernet.interface }}.{{ ethernet.tag }} hello-interval 1
+set network virtual-router {{ vrouter }} protocol ospf area 0.0.0.0 interface {{ ethernet.interface }}.{{ ethernet.tag }} dead-counts 4
+set network virtual-router {{ vrouter }} protocol ospf area 0.0.0.0 interface {{ ethernet.interface }}.{{ ethernet.tag }} retransmit-interval 5
+set network virtual-router {{ vrouter }} protocol ospf area 0.0.0.0 interface {{ ethernet.interface }}.{{ ethernet.tag }} transit-delay 1
+set network virtual-router {{ vrouter }} protocol ospf area 0.0.0.0 interface {{ ethernet.interface }}.{{ ethernet.tag }} link-type broadcast
+
+{% endif %}
+# Validate and commit
+show | match {{ ethernet.interface }}.{{ ethernet.tag }}
+
+commit
+
+run show interface {{ ethernet.interface }}.{{ ethernet.tag }}
+run show arp {{ ethernet.interface }}.{{ ethernet.tag }}
+run ping count 3 source {{ ethernet.ip[:-3] }} host 10.10.10.10
+run traceroute source {{ ethernet.ip[:-3] }} host 10.10.10.10
+{% endif %}
+
+
+#####################################
+### Rollback switch configuration ###
+#####################################
+
+{% if switch is defined %}
+configure terminal
+
+{% if switch.update_interfaces %}
+# Remove new VLAN to switch ports and validate
+{% for interface in switch.interfaces %}
+interface {{ interface }}
+ switchport trunk allowed vlan remove {{ switch.vlan }}
+!
+do show running-config interface {{ interface }}
+do show interface {{ interface }} trunk
+!
+!
+{% endfor %}
+
+{% endif %}
+# Remove switch VLAN and validate
+no vlan {{ switch.vlan }}
+do show vlan id {{ switch.vlan }}
+
+# Save switch configuration
+end
+copy running-config startup-config
+{% endif %}
+
+
+#######################################
+### Rollback firewall configuration ###
+#######################################
+
+configure
+load config from pre-dmz-config-2020-05.xml
+run show config diff
+commit

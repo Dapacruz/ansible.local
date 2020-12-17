@@ -1,0 +1,36 @@
+#jinja2: lstrip_blocks: True, trim_blocks: True
+
+# Create zones
+{% for zone in zones %}
+set vsys {{ vsys }} zone {{ zone.name }} network layer3 [ ]
+{% if zone.enable_user_id %}
+set vsys {{ vsys }} zone {{ zone.name }} enable-user-identification yes
+{% endif %}
+{% endfor %}
+
+# Create and assign interfaces
+{% for sub_int in subinterfaces %}
+set network interface aggregate-ethernet {{ sub_int.ae_interface }} layer3 units {{ sub_int.ae_interface }}.{{ sub_int.tag }} tag {{ sub_int.tag }}
+set network interface aggregate-ethernet {{ sub_int.ae_interface }} layer3 units {{ sub_int.ae_interface }}.{{ sub_int.tag }} ipv6 neighbor-discovery router-advertisement enable no
+set network interface aggregate-ethernet {{ sub_int.ae_interface }} layer3 units {{ sub_int.ae_interface }}.{{ sub_int.tag }} ndp-proxy enabled no
+set network interface aggregate-ethernet {{ sub_int.ae_interface }} layer3 units {{ sub_int.ae_interface }}.{{ sub_int.tag }} adjust-tcp-mss enable no
+set network interface aggregate-ethernet {{ sub_int.ae_interface }} layer3 units {{ sub_int.ae_interface }}.{{ sub_int.tag }} comment "{{ sub_int.comment }}"
+set network interface aggregate-ethernet {{ sub_int.ae_interface }} layer3 units {{ sub_int.ae_interface }}.{{ sub_int.tag }} interface-management-profile "{{ sub_int.mgmt_profile }}"
+set vsys {{ vsys }} import network interface {{ sub_int.ae_interface }}.{{ sub_int.tag }}
+set vsys {{ vsys }} zone {{ sub_int.zone }} network layer3 {{ sub_int.ae_interface }}.{{ sub_int.tag }}
+set network virtual-router {{ vrouter }} interface {{ sub_int.ae_interface }}.{{ sub_int.tag }}
+set network interface aggregate-ethernet {{ sub_int.ae_interface }} layer3 units {{ sub_int.ae_interface }}.{{ sub_int.tag }} ip {{ sub_int.ip }}
+{% endfor %}
+
+# Create static routes
+{% for route in routes %}
+set network virtual-router {{ vrouter }} routing-table ip static-route {{ route.name }} nexthop ip-address {{ route.nexthop }}
+set network virtual-router {{ vrouter }} routing-table ip static-route {{ route.name }} bfd profile None
+set network virtual-router {{ vrouter }} routing-table ip static-route {{ route.name }} interface {{ route.interface }}
+set network virtual-router {{ vrouter }} routing-table ip static-route {{ route.name }} path-monitor enable no
+set network virtual-router {{ vrouter }} routing-table ip static-route {{ route.name }} path-monitor failure-condition any
+set network virtual-router {{ vrouter }} routing-table ip static-route {{ route.name }} path-monitor hold-time 2
+set network virtual-router {{ vrouter }} routing-table ip static-route {{ route.name }} metric 10
+set network virtual-router {{ vrouter }} routing-table ip static-route {{ route.name }} destination {{ route.destination }}
+set network virtual-router {{ vrouter }} routing-table ip static-route {{ route.name }} route-table unicast
+{% endfor %}

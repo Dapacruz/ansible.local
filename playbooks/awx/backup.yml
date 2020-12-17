@@ -46,4 +46,26 @@
       dest: backup/
     become: True
     loop: '{{ files.stdout_lines }}'
+
+  - name: Enumerate ~/certs
+    shell: find ~/certs -type f
+    register: files
+
+  - name: Backup ~/certs
+    fetch:
+      src: '{{ item }}'
+      dest: backup/
+    become: True
+    loop: '{{ files.stdout_lines }}'
+
+  - name: Backup ~/.zshrc
+    fetch:
+      src: ~/.zshrc
+      dest: backup/
+
+  - name: Backup cron file
+    fetch:
+      src: /var/spool/cron/root
+      dest: backup/
+    become: True
 ...

@@ -1,5 +1,5 @@
 ---
-- hosts: ***REMOVED***.***REMOVED***.com
+- hosts: asa
   gather_facts: False
 
   vars_prompt:
@@ -13,7 +13,7 @@
       commands: show run | in ^ *nameif
       provider: '{{ cli }}'
     register: results
-  
+
   - name: Parse interface names and assign to a variable
     set_fact:
       int_names: '{{ results.stdout_lines[0] | map("regex_replace", "nameif\s", "") | list }}'

@@ -1,0 +1,35 @@
+---
+- hosts: panos
+  connection: local
+  gather_facts: False
+
+  collections:
+    - paloaltonetworks.panos
+
+  tasks:
+    - name: Get high-availability info
+      panos_op:
+        provider: "{{ provider }}"
+        cmd: show high-availability state
+      register: ha_info
+      changed_when: no
+
+    - name: Parse high-availability state
+      xml:
+        xmlstring: "{{ ha_info.stdout_xml }}"
+        content: "text"
+        xpath: "//local-info/state"
+      ignore_errors: yes
+      register: ha_state
+      when: ha_info.stdout_xml is not search('<enabled>no</enabled>')
+
+    - name: Fail when high-availability is in a non-functional state
+      fail:
+        msg: "High-availability is in an inconsistent state."
+      when: ha_info.stdout_xml is not search('<enabled>no</enabled>') and
+        ha_state.matches[0].state not in ['active', 'passive']
+
+    - name: Show high-availbility state
+      debug:
+        msg: "High-availability status: {{ ha_state.matches[0].state }}"
+      when: ha_info.stdout_xml is not search('<enabled>no</enabled>')

@@ -6,35 +6,35 @@
     - name: 'ansible_ssh_pass'
       prompt: 'SSH Password'
       private: True
-  
+
   tasks:
   - name: Get high-availability status
     asa_command:
       commands: show failover | in This (host|context)
       provider: '{{ cli }}'
     register: results
-  
+
   - debug:
       var: results.stdout_lines
-  
+
   - name: Get SSH access configuration
     asa_command:
       commands: show run ssh | grep ssh [0-9]
       provider: '{{ cli }}'
     register: results
-  
+
   - debug:
       var: results.stdout_lines
-  
+
   - name: Parse the zone name assign it to a variable
     set_fact:
       zone: '{{ results.stdout[0] | regex_replace("ssh\s.*\s", "") }}'
-  
+
   - debug:
       msg: ssh 10.170.155.47 255.255.255.255 {{ zone }}
       verbosity: 1
-  
-  - name: Enable SSH access for awx.***REMOVED***.com
+
+  - name: Enable SSH access for AWX
     asa_config:
       lines:
         - ssh 10.170.155.47 255.255.255.255 {{ zone }}

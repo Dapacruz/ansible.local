@@ -3,16 +3,16 @@
   connection: local
   gather_facts: False
 
-  tasks:
-  - name: Show System Info
-    panos_op:
-      ip_address: '{{ inventory_hostname }}'
-      api_key: '{{ vault_api_key }}'
-      cmd: show system info
-    delegate_to: localhost
-    register: sys_info
+  collections:
+    - paloaltonetworks.panos
 
-  - name: Output System Info
-    debug:
-      var: sys_info.stdout_lines[0]
-...
+  tasks:
+    - name: Show System Info
+      panos_op:
+        provider: "{{ provider }}"
+        cmd: show system info
+      register: sys_info
+
+    - name: Output System Info
+      debug:
+        var: sys_info.stdout_lines[0]

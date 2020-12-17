@@ -1,33 +1,32 @@
 ---
-- hosts: brwa*
+- hosts: panos
   connection: local
   gather_facts: False
 
+  collections:
+    - paloaltonetworks.panos
+
   tasks:
-  - name: Show Global Counters
-    panos_op:
-      ip_address: '{{ inventory_hostname }}'
-      api_key: '{{ vault_api_key }}'
-      cmd: show counter global
-    delegate_to: localhost
-    register: counters
+    - name: Show Global Counter
+      panos_op:
+        provider: "{{ provider }}"
+        cmd: show counter global name flow_tcp_non_syn_drop
+      register: counter
 
-  - name: Parse Aysymmetric Drop Rate
-    xml:
-      xmlstring: "{{ counters.stdout_xml }}"
-      content: "text"
-      xpath: "//entry[name='flow_tcp_non_syn']/rate"
-    delegate_to: localhost
-    ignore_errors: yes
-    register: drop_rate
+    - name: Parse Aysymmetric Drop Rate
+      xml:
+        xmlstring: "{{ counter.stdout_xml }}"
+        content: "text"
+        xpath: "//entry/value"
+      ignore_errors: yes
+      register: drop_rate
 
-  - name: Output
-    debug:
-      msg: "Asymmetric Drop Rate: {{ drop_rate.matches[0].rate }}"
-    when: drop_rate.matches is defined
+    - name: Output
+      debug:
+        msg: "Asymmetric Drop Rate: {{ drop_rate.matches[0].value }}"
+      when: drop_rate.matches is defined
 
-  - name: Output
-    debug:
-      msg: "Asymmetric Drop Rate: N/A"
-    when: drop_rate.matches is undefined
-...
+    - name: Output
+      debug:
+        msg: "Asymmetric Drop Rate: N/A"
+      when: drop_rate.matches is undefined

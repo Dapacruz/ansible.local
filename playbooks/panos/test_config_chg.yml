@@ -1,0 +1,19 @@
+---
+- hosts: panos
+  connection: local
+  gather_facts: False
+
+  collections:
+    - paloaltonetworks.panos
+
+  tasks:
+    - name: Change Hostname
+      panos_type_cmd:
+        provider: "{{ provider }}"
+        cmd: edit
+        xpath: /config/devices/entry[@name='localhost.localdomain']/deviceconfig/system/hostname
+        element: <hostname>RKAT1012003FW07TEST</hostname>
+      register: hostname
+
+    - debug:
+        var: hostname.changed

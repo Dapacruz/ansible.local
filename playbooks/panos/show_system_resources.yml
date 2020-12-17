@@ -1,18 +1,18 @@
 ---
-- hosts: jamc*
+- hosts: panos
   connection: local
   gather_facts: False
 
-  tasks:
-  - name: Show System Resource
-    panos_op:
-      ip_address: '{{ inventory_hostname }}'
-      api_key: '{{ vault_api_key }}'
-      cmd: show running resource-monitor
-    delegate_to: localhost
-    register: sys_resources_mon
+  collections:
+    - paloaltonetworks.panos
 
-  - name: Output System Resource Monitor
-    debug:
-      var: sys_resources_mon.stdout_lines[0]
-...
+  tasks:
+    - name: Show System Resource
+      panos_op:
+        provider: "{{ provider }}"
+        cmd: show running resource-monitor
+      register: sys_resources_mon
+
+    - name: Output System Resource Monitor
+      debug:
+        var: sys_resources_mon.stdout_lines[0]

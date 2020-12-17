@@ -1,0 +1,20 @@
+---
+- hosts: panos
+  connection: local
+  gather_facts: False
+
+  collections:
+    - paloaltonetworks.panos
+
+  tasks:
+    - name: Update local admin users
+      panos_type_cmd:
+        provider: "{{ provider }}"
+        cmd: "set"
+        xpath: "/config/mgt-config/users"
+        element: '<entry name="{{ item.name }}"><phash>{{ item.phash }}</phash><permissions><role-based><superuser>yes</superuser></role-based></permissions></entry>'
+      with_items: "{{ admin_users }}"
+
+    - name: Commit configuration
+      panos_commit:
+        provider: "{{ provider }}"

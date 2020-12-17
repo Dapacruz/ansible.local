@@ -1,0 +1,25 @@
+---
+- hosts: panos
+  connection: local
+  gather_facts: False
+
+  collections:
+    - paloaltonetworks.panos
+
+  tasks:
+    - name: Check Current Content Version
+      panos_op:
+        provider: "{{ provider }}"
+        cmd: show system info
+      register: results
+
+    - name: Parse App Version
+      xml:
+        xmlstring: "{{ results.stdout_xml }}"
+        xpath: //app-version
+        content: text
+      register: app_version
+
+    - name: Current App/Threat Version
+      debug:
+        msg: "Current Content Version: {{ app_version.matches[0]['app-version'] }}"

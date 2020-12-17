@@ -1,0 +1,11 @@
+---
+- hosts: asa_staging
+  gather_facts: False
+
+  tasks:
+  - name: Generate Intial Configuration Files
+    template:
+      src: templates/asa_staging.j2
+      dest: templates/output/asa_staging/asa_staging-{{ inventory_hostname }}.txt
+    delegate_to: localhost
+...
