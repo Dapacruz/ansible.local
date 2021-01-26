@@ -1,0 +1,144 @@
+---
+- hosts: panos
+  connection: local
+  gather_facts: False
+
+  collections:
+    - paloaltonetworks.panos
+
+  vars:
+    - snapshot_file: pre-subint-deploy-20210125.xml
+
+  vars_files:
+    - ../../private_vars/deploy_subinterface_vars.yml
+
+  tasks:
+    - name: Get PAN-OS Facts
+      panos_facts:
+        provider: "{{ provider }}"
+        gather_subset: ["ha"]
+
+    - set_fact:
+        deploy: True
+        interface: "{{ subinterface.interface }}"
+        ip_address: "{{ subinterface.ip_address }}"
+        vlan: "{{ subinterface.vlan }}"
+        virtual_router: "{{ subinterface.virtual_router }}"
+        vsys: "{{ subinterface.vsys }}"
+        zone: "{{ subinterface.zone }}"
+        area: "{{ subinterface.area }}"
+      when: inventory_hostname in subinterface.firewall and ansible_net_ha_localstate == 'active'
+      loop: "{{ subinterfaces }}"
+      loop_control:
+        loop_var: subinterface
+
+    - name: Deploy Subinterface
+      block:
+        - name: Save configuration snapshot
+          panos_op:
+            provider: "{{ provider }}"
+            cmd: save config to {{ snapshot_file }}
+
+        - name: Create Subinterface
+          panos_l3_subinterface:
+            provider: "{{ provider }}"
+            name: "{{ interface }}"
+            tag: "{{ vlan }}"
+            ip: ["{{ ip_address }}"]
+            zone_name: "{{ zone }}"
+            comment: "Active Directory authentication"
+            management_profile: Any Ping
+            vr_name: "{{ virtual_router }}"
+            vsys: "{{ vsys }}"
+            enable_dhcp: False
+          notify: Commit Changes Partial
+
+        - name: Gather Virtual Router Configuration
+          panos_op:
+            provider: "{{ provider }}"
+            cmd: show config running xpath devices/entry["localhost.localdomain"]/network/virtual-router
+          register: vr_config
+          changed_when: False
+
+        - name: Parse OSPF State
+          xml:
+            xmlstring: "{{ vr_config.stdout_xml }}"
+            xpath: //entry["{{ virtual_router }}"]//ospf/enable
+            content: text
+          register: ospf_enabled
+          failed_when: False
+
+        - set_fact:
+            ospf_enabled: "{{ ospf_enabled.matches[0].enable | default(False) }}"
+
+        - name: Update OSPF Configuration
+          block:
+          - name: Parse OSPF Export Rules
+            xml:
+              xmlstring: "{{ vr_config.stdout_xml }}"
+              xpath: //entry["{{ virtual_router }}"]//ospf/export-rules/entry
+              content: attribute
+            register: export_rules
+            failed_when: False
+
+          - name: Parse Redistribution Profiles
+            xml:
+              xmlstring: "{{ vr_config.stdout_xml }}"
+              xpath: |
+                //entry["{{ virtual_router }}"]/protocol/redist-profile/entry[@name = "{{ redist_profile.entry.name }}"]
+                /filter/type/member[text() = "connect"]
+              content: text
+            register: redist_profiles
+            failed_when: False
+            loop: "{{ export_rules.matches | default([]) }}"
+            loop_control:
+              loop_var: redist_profile
+
+          - set_fact:
+              redist_connected: "{{ redist_profiles.results | selectattr('matches', 'defined') | list | ternary(True, False) }}"
+
+          - name: Enable OSPF On Subinterface
+            panos_type_cmd:
+              provider: "{{ provider }}"
+              xpath: |
+                /config/devices/entry[@name = "localhost.localdomain"]/network/virtual-router
+                /entry[@name = "{{ virtual_router }}"]/protocol/ospf/area/entry[@name = "{{ area }}"]/interface
+              element: |
+                <entry name="{{ interface }}">
+                  <enable>yes</enable>
+                  <passive>yes</passive>
+                  <gr-delay>10</gr-delay>
+                  <metric>10</metric>
+                  <priority>1</priority>
+                  <hello-interval>10</hello-interval>
+                  <dead-counts>4</dead-counts>
+                  <retransmit-interval>5</retransmit-interval>
+                  <transit-delay>1</transit-delay>
+                  <link-type>
+                  <broadcast/>
+                  </link-type>
+                </entry>
+            when: not redist_connected
+            notify: Commit Changes Partial
+          when: ospf_enabled
+      when: deploy and not rollback
+
+    - name: Rollback
+      block:
+        - name: Load configuration snapshot
+          panos_op:
+            provider: "{{ provider }}"
+            cmd: load config from {{ snapshot_file }}
+          notify: Commit Changes Full
+      when: rollback
+
+  handlers:
+    - name: Commit Changes Partial
+      panos_commit:
+        provider: "{{ provider }}"
+        admins: ["{{ ansible_user }}"]
+
+    - name: Commit Changes Full
+      panos_commit:
+        provider: "{{ provider }}"
+...
